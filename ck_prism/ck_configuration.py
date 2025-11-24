@@ -36,7 +36,7 @@ def configure_utility():
     
     # 3. Fetch Roles
     print("\nFetching available roles...")
-    roles = fetch_available_roles(temp_config, access_token)
+    roles, account_names = fetch_available_roles(temp_config, access_token)
     
     if not roles:
         print("No roles found for this user.")
@@ -83,7 +83,11 @@ def configure_utility():
     sorted_accounts = sorted(accounts.keys())
     
     for idx, acc_id in enumerate(sorted_accounts, 1):
-        print(f"{idx}. {acc_id}")
+        acc_name = account_names.get(acc_id) if 'account_names' in locals() else None
+        if acc_name:
+            print(f"{idx}. {acc_id} ({acc_name})")
+        else:
+            print(f"{idx}. {acc_id}")
         
     while True:
         try:

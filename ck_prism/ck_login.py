@@ -297,15 +297,23 @@ def fetch_available_roles(config, access_token):
         
         roles_data = response.json()
         
+        # Extract roles
         if 'available_roles' in roles_data:
-            return roles_data['available_roles']
+            roles = roles_data['available_roles']
         elif 'roles' in roles_data:
-            return roles_data['roles']
+            roles = roles_data['roles']
         elif isinstance(roles_data, list):
-            return roles_data
+            roles = roles_data
         else:
             print(f'Unexpected response format: {roles_data}')
             exit(1)
+        
+        # Extract account names if present
+        account_names = {}
+        if isinstance(roles_data, dict) and 'account_names' in roles_data and isinstance(roles_data['account_names'], dict):
+            account_names = roles_data['account_names']
+        
+        return roles, account_names
             
     except requests.exceptions.RequestException as e:
         print(f'Error connecting to API: {e}')
