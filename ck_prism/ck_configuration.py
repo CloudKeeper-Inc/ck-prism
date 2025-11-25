@@ -2,7 +2,7 @@ import sys
 import json
 import subprocess
 import os
-from ck_prism.ck_login import interactive_login, fetch_available_roles, PRISM_DOMAINS, DEFAULT_PRISM_DOMAIN, get_prism_base_url, get_api_endpoint
+from ck_prism.ck_login import interactive_login, fetch_available_roles, DEFAULT_PRISM_DOMAIN, get_prism_base_url, get_api_endpoint
 
 def configure_utility():
     if sys.platform.startswith('linux') or sys.platform.startswith('darwin'):
@@ -20,32 +20,15 @@ def configure_utility():
     print("=" * 50)
 
     # 1. Ask for Prism Domain
-    print("\nAvailable Prism regions:")
-    domain_options = list(PRISM_DOMAINS.keys())
-    for idx, domain_key in enumerate(domain_options, 1):
-        default_marker = " (default)" if domain_key == DEFAULT_PRISM_DOMAIN else ""
-        print(f"  {idx}. {domain_key} ({PRISM_DOMAINS[domain_key]}){default_marker}")
+    print(f"\n  Examples: prism.cloudkeeper.com, prism-eu.cloudkeeper.com, myprism.xyz.in")
 
-    while True:
-        try:
-            selection = input(f'\nSelect Prism region [1]: ').strip() or '1'
-            selected_idx = int(selection) - 1
-            if 0 <= selected_idx < len(domain_options):
-                prism_domain = domain_options[selected_idx]
-                break
-            else:
-                print(f'Please enter a number between 1 and {len(domain_options)}')
-        except ValueError:
-            print('Please enter a valid number')
-        except KeyboardInterrupt:
-            print('\nOperation cancelled')
-            exit(0)
+    prism_domain = input(f'\nEnter Prism domain [example - {DEFAULT_PRISM_DOMAIN}]: ').strip() or DEFAULT_PRISM_DOMAIN
 
-    print(f"Using Prism region: {prism_domain}")
+    print(f"Using Prism domain: {prism_domain}")
 
     # 2. Ask for Realm
-    realm = input('Enter Customer Name [subdomain]: ').strip() or 'ck'
-
+    realm = input(f'Enter Prism tenant [example - for sso.{prism_domain}, enter \'sso\']: ').strip() or 'sso'
+    realm = realm.strip("'")
     # 3. Perform Login
     print(f"\nLogging in to realm '{realm}' to fetch available roles...")
     temp_config = {

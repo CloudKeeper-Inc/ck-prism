@@ -13,22 +13,16 @@ import socketserver
 import threading
 import requests
 
-# Base URL options
-PRISM_DOMAINS = {
-    'prism': 'prism.cloudkeeper.com',
-    'prism-eu': 'prism-eu.cloudkeeper.com'
-}
-DEFAULT_PRISM_DOMAIN = 'prism'
+# Default domain configuration
+DEFAULT_PRISM_DOMAIN = 'prism.cloudkeeper.com'
 
-def get_prism_base_url(domain_key='prism'):
-    """Get the login base URL for the given domain key."""
-    domain = PRISM_DOMAINS.get(domain_key, PRISM_DOMAINS[DEFAULT_PRISM_DOMAIN])
-    return f'https://login.{domain}'
+def get_prism_base_url(prism_domain=DEFAULT_PRISM_DOMAIN):
+    """Get the login base URL for the given Prism domain."""
+    return f'https://login.{prism_domain}'
 
-def get_api_endpoint(domain_key='prism'):
-    """Get the API endpoint for the given domain key."""
-    domain = PRISM_DOMAINS.get(domain_key, PRISM_DOMAINS[DEFAULT_PRISM_DOMAIN])
-    return f'https://cli.{domain}/exchange'
+def get_api_endpoint(prism_domain=DEFAULT_PRISM_DOMAIN):
+    """Get the API endpoint for the given Prism domain."""
+    return f'https://cli.{prism_domain}/exchange'
 
 def get_home_directory():
     if sys.platform.startswith('linux') or sys.platform.startswith('darwin'):
@@ -80,10 +74,10 @@ def login_utility():
 
     profile_config = config[profile]
 
-    # Get domain from config (defaults to 'prism' if not set)
-    domain_key = profile_config.get('prism_domain', DEFAULT_PRISM_DOMAIN)
-    profile_config['keycloak_base_url'] = get_prism_base_url(domain_key)
-    profile_config['api_endpoint'] = get_api_endpoint(domain_key)
+    # Get Prism domain from config (with default)
+    prism_domain = profile_config.get('prism_domain', DEFAULT_PRISM_DOMAIN)
+    profile_config['keycloak_base_url'] = get_prism_base_url(prism_domain)
+    profile_config['api_endpoint'] = get_api_endpoint(prism_domain)
 
     tokens = get_or_refresh_tokens(profile_config, directory, profile)
     

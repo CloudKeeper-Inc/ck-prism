@@ -6,3 +6,6 @@
 ## [1.0.2] 2025-11-24
 - Enhance role fetching to display account names while configuring a profile.
 - Added support for Prism EU instance
+
+## [1.1.0] 2025-11-25
+- Added support for self-hosted Prism instances

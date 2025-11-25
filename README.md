@@ -40,7 +40,8 @@ ck-prism configure
 ```
 
 You'll be prompted for:
-- **Prism Subdomain**: This can be found in your Prism instance - "https://{YOUR_SUBDOMAIN}.prism.cloudkeeper.com
+- **Prism Domain**: This can be found in your Prism instance - "https://prism.cloudkeeper.com" , "https://myprism.xyz.in"
+- **Prism Tenant**: This can be found in your Prism SSO Url - "https://sso.prism.cloudkeeper.com' here, 'sso' is your Prism tenant
 - **AWS Region**: Default is `us-east-1`
 
 ### Manual Configuration
