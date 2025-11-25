@@ -20,8 +20,7 @@ def configure_utility():
     print("=" * 50)
 
     # 1. Ask for Prism Domain
-    print(f"\n  Examples: prism.cloudkeeper.com, prism-eu.cloudkeeper.com, myprism.xyz.in")
-
+    
     prism_domain = input(f'\nEnter Prism domain [example - {DEFAULT_PRISM_DOMAIN}]: ').strip() or DEFAULT_PRISM_DOMAIN
 
     print(f"Using Prism domain: {prism_domain}")
