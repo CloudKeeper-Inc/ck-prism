@@ -133,3 +133,4 @@ local-testing/*
 # CloudKeeper specific
 PUBLISHING.md
 .venv/
+CLAUDE.md

@@ -13,13 +13,22 @@ import socketserver
 import threading
 import requests
 
-# Hardcoded Constants
-KEYCLOAK_BASE_URL = 'https://login.auth.cloudkeeper.com'
-# Placeholder for API Endpoint - User to provide or we use a default if known. 
-# Since user didn't provide, I will use a placeholder that must be replaced.
-# However, to make it functional for now I will try to keep the logic that reads it from config if not hardcoded here.
-# But the requirement was to hardcode it. I will use a placeholder string.
-API_ENDPOINT = 'https://cli.auth.cloudkeeper.com/exchange' # Guessed based on typical patterns, but will add a TODO.
+# Base URL options
+PRISM_DOMAINS = {
+    'prism': 'prism.cloudkeeper.com',
+    'prism-eu': 'prism-eu.cloudkeeper.com'
+}
+DEFAULT_PRISM_DOMAIN = 'prism'
+
+def get_prism_base_url(domain_key='prism'):
+    """Get the login base URL for the given domain key."""
+    domain = PRISM_DOMAINS.get(domain_key, PRISM_DOMAINS[DEFAULT_PRISM_DOMAIN])
+    return f'https://login.{domain}'
+
+def get_api_endpoint(domain_key='prism'):
+    """Get the API endpoint for the given domain key."""
+    domain = PRISM_DOMAINS.get(domain_key, PRISM_DOMAINS[DEFAULT_PRISM_DOMAIN])
+    return f'https://cli.{domain}/exchange'
 
 def get_home_directory():
     if sys.platform.startswith('linux') or sys.platform.startswith('darwin'):
@@ -70,11 +79,11 @@ def login_utility():
         exit(1)
 
     profile_config = config[profile]
-    
-    # Ensure hardcoded values are used/merged if missing (though configure should set them)
-    # Actually, if we hardcode them in code, we should use the constants.
-    profile_config['keycloak_base_url'] = KEYCLOAK_BASE_URL
-    profile_config['api_endpoint'] = API_ENDPOINT
+
+    # Get domain from config (defaults to 'prism' if not set)
+    domain_key = profile_config.get('prism_domain', DEFAULT_PRISM_DOMAIN)
+    profile_config['keycloak_base_url'] = get_prism_base_url(domain_key)
+    profile_config['api_endpoint'] = get_api_endpoint(domain_key)
 
     tokens = get_or_refresh_tokens(profile_config, directory, profile)
     

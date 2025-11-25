@@ -2,7 +2,7 @@ import sys
 import json
 import subprocess
 import os
-from ck_prism.ck_login import interactive_login, fetch_available_roles, KEYCLOAK_BASE_URL, API_ENDPOINT
+from ck_prism.ck_login import interactive_login, fetch_available_roles, PRISM_DOMAINS, DEFAULT_PRISM_DOMAIN, get_prism_base_url, get_api_endpoint
 
 def configure_utility():
     if sys.platform.startswith('linux') or sys.platform.startswith('darwin'):
@@ -18,17 +18,41 @@ def configure_utility():
 
     print("\nConfiguring ck-prism")
     print("=" * 50)
-    
-    # 1. Ask for Realm
+
+    # 1. Ask for Prism Domain
+    print("\nAvailable Prism regions:")
+    domain_options = list(PRISM_DOMAINS.keys())
+    for idx, domain_key in enumerate(domain_options, 1):
+        default_marker = " (default)" if domain_key == DEFAULT_PRISM_DOMAIN else ""
+        print(f"  {idx}. {domain_key} ({PRISM_DOMAINS[domain_key]}){default_marker}")
+
+    while True:
+        try:
+            selection = input(f'\nSelect Prism region [1]: ').strip() or '1'
+            selected_idx = int(selection) - 1
+            if 0 <= selected_idx < len(domain_options):
+                prism_domain = domain_options[selected_idx]
+                break
+            else:
+                print(f'Please enter a number between 1 and {len(domain_options)}')
+        except ValueError:
+            print('Please enter a valid number')
+        except KeyboardInterrupt:
+            print('\nOperation cancelled')
+            exit(0)
+
+    print(f"Using Prism region: {prism_domain}")
+
+    # 2. Ask for Realm
     realm = input('Enter Customer Name [subdomain]: ').strip() or 'ck'
-    
-    # 2. Perform Login
+
+    # 3. Perform Login
     print(f"\nLogging in to realm '{realm}' to fetch available roles...")
     temp_config = {
         'realm': realm,
         'client_id': 'ckauth-cli', # Default client ID
-        'keycloak_base_url': KEYCLOAK_BASE_URL,
-        'api_endpoint': API_ENDPOINT
+        'keycloak_base_url': get_prism_base_url(prism_domain),
+        'api_endpoint': get_api_endpoint(prism_domain)
     }
     
     tokens = interactive_login(temp_config)
@@ -149,6 +173,7 @@ def configure_utility():
             pass
             
     config[profile_name] = {
+        'prism_domain': prism_domain,
         'realm': realm,
         'client_id': 'ckauth-cli',
         'region': region,
