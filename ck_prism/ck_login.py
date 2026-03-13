@@ -79,6 +79,7 @@ def login_utility():
     profile_config['keycloak_base_url'] = get_prism_base_url(prism_domain)
     profile_config['api_endpoint'] = get_api_endpoint(prism_domain)
 
+
     tokens = get_or_refresh_tokens(profile_config, directory, profile)
     
     if 'role_arn' not in profile_config:
@@ -164,8 +165,7 @@ def interactive_login(config):
         'scope': 'openid profile email offline_access',
         'code_challenge': code_challenge,
         'code_challenge_method': 'S256',
-        'state': state,
-        'prompt': 'consent'
+        'state': state
     }
     
     auth_url = f"{config['keycloak_base_url']}/realms/{config['realm']}/protocol/openid-connect/auth?" + urllib.parse.urlencode(auth_params)
@@ -217,6 +217,73 @@ def interactive_login(config):
         'expires_at': time.time() + token_data.get('expires_in', 300)
     }
 
+SUCCESS_PAGE = '''<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Login Successful - CK Prism</title>
+<script>history.replaceState(null, '', '/cb');</script>
+<link href="https://fonts.googleapis.com/css2?family=Bitter:wght@600;700&display=swap" rel="stylesheet">
+<style>
+  @import url('https://fonts.cdnfonts.com/css/metropolis-2');
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Metropolis', -apple-system, BlinkMacSystemFont, sans-serif; min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #F9FBFD; color: #333333; }
+  .card { text-align: center; background: #FFFFFF; padding: 48px 40px; border-radius: 6px; border: 1px solid #E5E5E5; box-shadow: 0 2px 12px rgba(0,0,0,0.08); max-width: 420px; width: 90%; animation: fadeUp 0.4s cubic-bezier(0.22, 1, 0.36, 1) both; }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+  .icon { width: 56px; height: 56px; background: rgba(39,174,96,0.1); border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 24px; }
+  .icon svg { width: 28px; height: 28px; color: #27AE60; }
+  h1 { font-family: 'Bitter', serif; font-size: 22px; font-weight: 600; color: #253E66; margin-bottom: 8px; letter-spacing: -0.01em; }
+  p { font-size: 14px; font-weight: 400; color: #999999; line-height: 1.6; }
+  .divider { width: 40px; height: 3px; background: #4698D3; border-radius: 2px; margin: 24px auto 20px; }
+  .brand { font-size: 11px; font-weight: 600; color: #BDBDBD; letter-spacing: 1.5px; }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+  <h1>Login Successful</h1>
+  <p>Authentication complete. You can close this tab and return to your terminal.</p>
+  <div class="divider"></div>
+  <div class="brand">CK PRISM</div>
+</div>
+</body>
+</html>'''
+
+ERROR_PAGE = '''<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Login Failed - CK Prism</title>
+<script>history.replaceState(null, '', '/cb');</script>
+<link href="https://fonts.googleapis.com/css2?family=Bitter:wght@600;700&display=swap" rel="stylesheet">
+<style>
+  @import url('https://fonts.cdnfonts.com/css/metropolis-2');
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Metropolis', -apple-system, BlinkMacSystemFont, sans-serif; min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #F9FBFD; color: #333333; }
+  .card { text-align: center; background: #FFFFFF; padding: 48px 40px; border-radius: 6px; border: 1px solid #E5E5E5; box-shadow: 0 2px 12px rgba(0,0,0,0.08); max-width: 420px; width: 90%; animation: fadeUp 0.4s cubic-bezier(0.22, 1, 0.36, 1) both; }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+  .icon { width: 56px; height: 56px; background: rgba(231,76,60,0.1); border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 24px; }
+  .icon svg { width: 28px; height: 28px; color: #E74C3C; }
+  h1 { font-family: 'Bitter', serif; font-size: 22px; font-weight: 600; color: #253E66; margin-bottom: 8px; letter-spacing: -0.01em; }
+  p { font-size: 14px; font-weight: 400; color: #999999; line-height: 1.6; }
+  .divider { width: 40px; height: 3px; background: #E74C3C; border-radius: 2px; margin: 24px auto 20px; }
+  .brand { font-size: 11px; font-weight: 600; color: #BDBDBD; letter-spacing: 1.5px; }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></div>
+  <h1>Authentication Failed</h1>
+  <p>Something went wrong during login. Please try again from your terminal.</p>
+  <div class="divider"></div>
+  <div class="brand">CK PRISM</div>
+</div>
+</body>
+</html>'''
+
+
 def start_callback_server(expected_state, result):
     class CallbackHandler(http.server.BaseHTTPRequestHandler):
         def do_GET(self):
@@ -236,20 +303,22 @@ def start_callback_server(expected_state, result):
                 self.send_response(400)
                 self.send_header('Content-Type', 'text/html')
                 self.end_headers()
-                self.wfile.write(b'<html><body><h3>Authentication failed</h3></body></html>')
+                self.wfile.write(ERROR_PAGE.encode())
                 return
-            
+
             if not code or state != expected_state:
                 result['error'] = 'Invalid state or missing code'
                 self.send_response(400)
+                self.send_header('Content-Type', 'text/html')
                 self.end_headers()
+                self.wfile.write(ERROR_PAGE.encode())
                 return
-            
+
             result['code'] = code
             self.send_response(200)
             self.send_header('Content-Type', 'text/html')
             self.end_headers()
-            self.wfile.write(b'<html><body><h3>Login complete!</h3><p>You can close this tab.</p></body></html>')
+            self.wfile.write(SUCCESS_PAGE.encode())
         
         def log_message(self, *args, **kwargs):
             pass
