@@ -7,5 +7,13 @@
 - Enhance role fetching to display account names while configuring a profile.
 - Added support for Prism EU instance
 
+## [1.2.0] 2026-03-16
+- Added interactive fuzzy selection for account and role prompts
+
+## [1.1.1] 2025-11-26
+- Fixed prompt=consent issue to unblock non-admin SSO users
+- Improved callback UI
+- Removed redundant print statement
+
 ## [1.1.0] 2025-11-25
 - Added support for self-hosted Prism instances
