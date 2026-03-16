@@ -33,7 +33,6 @@ setup(
         'Operating System :: MacOS',
         'Operating System :: Microsoft :: Windows',
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
         'Programming Language :: Python :: 3.9',
@@ -44,7 +43,7 @@ setup(
         'Topic :: System :: Systems Administration :: Authentication/Directory',
     ],
     keywords='aws authentication cli credentials cloudkeeper',
-    python_requires='>=3.6',
+    python_requires='>=3.7',
     entry_points={
         'console_scripts': [
             'ck-prism=ck_prism.main:main',
@@ -52,5 +51,6 @@ setup(
     },
     install_requires=[
         'requests>=2.31.0',
+        'InquirerPy>=0.3.4',
     ],
 )

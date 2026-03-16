@@ -3,6 +3,7 @@ import json
 import subprocess
 import os
 from ck_prism.ck_login import interactive_login, fetch_available_roles, DEFAULT_PRISM_DOMAIN, get_prism_base_url, get_api_endpoint
+from ck_prism.ck_prompt import interactive_select, clear_screen, Spinner
 
 def configure_utility():
     if sys.platform.startswith('linux') or sys.platform.startswith('darwin'):
@@ -39,10 +40,13 @@ def configure_utility():
     
     tokens = interactive_login(temp_config)
     access_token = tokens['access_token']
-    
+
+    # Clear the browser auth URL clutter
+    clear_screen()
+
     # 3. Fetch Roles
-    print("\nFetching available roles...")
-    roles, account_names = fetch_available_roles(temp_config, access_token)
+    with Spinner("Fetching available roles..."):
+        roles, account_names = fetch_available_roles(temp_config, access_token)
     
     if not roles:
         print("No roles found for this user.")
@@ -85,52 +89,29 @@ def configure_utility():
         exit(1)
 
     # 5. Prompt for Account
-    print(f"\nAvailable Accounts: {len(accounts)}")
     sorted_accounts = sorted(accounts.keys())
-    
-    for idx, acc_id in enumerate(sorted_accounts, 1):
-        acc_name = account_names.get(acc_id) if 'account_names' in locals() else None
-        if acc_name:
-            print(f"{idx}. {acc_id} ({acc_name})")
-        else:
-            print(f"{idx}. {acc_id}")
-        
-    while True:
-        try:
-            selection = input('\nSelect an account (enter number): ').strip()
-            selected_idx = int(selection) - 1
-            if 0 <= selected_idx < len(sorted_accounts):
-                selected_account_id = sorted_accounts[selected_idx]
-                break
-            else:
-                print(f'Please enter a number between 1 and {len(sorted_accounts)}')
-        except ValueError:
-            print('Please enter a valid number')
-        except KeyboardInterrupt:
-            print('\nOperation cancelled')
-            exit(0)
+    account_choices = []
+    for acc_id in sorted_accounts:
+        acc_name = account_names.get(acc_id)
+        label = f"{acc_id} ({acc_name})" if acc_name else acc_id
+        account_choices.append({"name": label, "value": acc_id})
+
+    selected_account_id = interactive_select(
+        message="Select an account:",
+        choices=account_choices,
+    )
 
     # 6. Prompt for Role
     account_roles = accounts[selected_account_id]
-    print(f"\nAvailable Roles for Account {selected_account_id}:")
-    
-    for idx, role in enumerate(account_roles, 1):
-        print(f"{idx}. {role['name']}")
-        
-    while True:
-        try:
-            selection = input('\nSelect a role (enter number): ').strip()
-            selected_idx = int(selection) - 1
-            if 0 <= selected_idx < len(account_roles):
-                selected_role = account_roles[selected_idx]
-                break
-            else:
-                print(f'Please enter a number between 1 and {len(account_roles)}')
-        except ValueError:
-            print('Please enter a valid number')
-        except KeyboardInterrupt:
-            print('\nOperation cancelled')
-            exit(0)
+    role_choices = [
+        {"name": role["name"], "value": role}
+        for role in account_roles
+    ]
+
+    selected_role = interactive_select(
+        message=f"Select a role for account {selected_account_id}:",
+        choices=role_choices,
+    )
             
     print(f"\nSelected Role: {selected_role['name']} ({selected_role['role_arn']})")
 
