@@ -391,29 +391,38 @@ def fetch_available_roles(config, access_token):
         print(f'Error connecting to API: {e}')
         exit(1)
 
-def get_aws_credentials(config, access_token, role_arn, profile, directory):
-    print(f'Exchanging token for AWS credentials for role: {role_arn}...')
-    
+def exchange_credentials(config, access_token, role_arn):
+    """Exchange a Prism access token for AWS credentials. Returns the credentials dict."""
     headers = {
         'Authorization': f'Bearer {access_token}',
         'Content-Type': 'application/json'
     }
-    
+
     creds_payload = {
         'token': access_token,
         'realm': config['realm'],
         'selected_role': role_arn
     }
-    
+
+    response = requests.post(config['api_endpoint'], json=creds_payload, headers=headers, timeout=30)
+    if response.status_code != 200:
+        raise RuntimeError(f'AWS credential exchange failed: {response.text}')
+
+    creds = response.json()
+
+    # Handle nested credentials structure
+    if 'credentials' in creds:
+        creds = creds['credentials']
+
+    return creds
+
+def get_aws_credentials(config, access_token, role_arn, profile, directory):
+    print(f'Exchanging token for AWS credentials for role: {role_arn}...')
+
     try:
-        response = requests.post(config['api_endpoint'], json=creds_payload, headers=headers, timeout=30)
-        if response.status_code != 200:
-            print(f'AWS credential exchange failed: {response.text}')
-            exit(1)
-        
-        creds = response.json()
+        creds = exchange_credentials(config, access_token, role_arn)
         write_aws_credentials(creds, profile, directory, config['region'])
-        
+
     except requests.exceptions.RequestException as e:
         print(f'Error connecting to API: {e}')
         exit(1)
@@ -426,10 +435,6 @@ def write_aws_credentials(creds, profile, directory, region):
     config_path = os.path.join(directory, '.aws', 'config')
     os.makedirs(os.path.dirname(credentials_path), exist_ok=True)
 
-    # Handle nested credentials structure
-    if 'credentials' in creds:
-        creds = creds['credentials']
-    
     # Handle both snake_case and PascalCase key formats
     access_key = creds.get('access_key_id') or creds.get('AccessKeyId')
     secret_key = creds.get('secret_access_key') or creds.get('SecretAccessKey')
@@ -478,3 +483,88 @@ def write_aws_credentials(creds, profile, directory, region):
         print(f'Credentials expire at: {expiration}')
     else:
         print(f'Credentials expire at: {time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(time.time() + 3600))}')
+
+def credential_process_utility():
+    """Output AWS credentials as JSON for use with AWS credential_process."""
+    # Redirect stdout to stderr so all print() calls during token
+    # acquisition don't pollute the JSON output on stdout.
+    real_stdout = sys.stdout
+    sys.stdout = sys.stderr
+
+    try:
+        directory = get_home_directory()
+
+        profile = 'default'
+        if len(sys.argv) == 2:
+            pass
+        elif len(sys.argv) == 4:
+            if sys.argv[2] == '--profile':
+                profile = sys.argv[3]
+            else:
+                print(f'Invalid flag {sys.argv[2]}. Acceptable flag is --profile.', file=sys.stderr)
+                exit(1)
+
+        config_path = os.path.join(directory, '.ck-prism', 'config.json')
+        if not os.path.exists(config_path):
+            print('Configuration not found. Run ck-prism configure', file=sys.stderr)
+            exit(1)
+
+        try:
+            with open(config_path, 'r') as f:
+                config = json.load(f)
+        except json.JSONDecodeError:
+            print('Configuration file is invalid or empty. Run ck-prism configure', file=sys.stderr)
+            exit(1)
+
+        if not config or profile not in config:
+            if profile == 'default':
+                print('No configuration found. Run ck-prism configure', file=sys.stderr)
+            else:
+                print(f'Profile {profile} not found. Run ck-prism configure', file=sys.stderr)
+            exit(1)
+
+        profile_config = config[profile]
+        prism_domain = profile_config.get('prism_domain', DEFAULT_PRISM_DOMAIN)
+        profile_config['keycloak_base_url'] = get_prism_base_url(prism_domain)
+        profile_config['api_endpoint'] = get_api_endpoint(prism_domain)
+
+        tokens = get_or_refresh_tokens(profile_config, directory, profile)
+
+        if 'role_arn' not in profile_config:
+            print(f"Error: Profile '{profile}' is missing 'role_arn'. Please run 'ck-prism configure' again.", file=sys.stderr)
+            exit(1)
+
+        creds = exchange_credentials(profile_config, tokens['access_token'], profile_config['role_arn'])
+
+        # Map to AWS credential_process output format
+        access_key = creds.get('access_key_id') or creds.get('AccessKeyId')
+        secret_key = creds.get('secret_access_key') or creds.get('SecretAccessKey')
+        session_token = creds.get('session_token') or creds.get('SessionToken')
+        expiration = creds.get('expiration') or creds.get('Expiration')
+
+        if not access_key or not secret_key:
+            print(f'Error: Invalid credentials format received', file=sys.stderr)
+            exit(1)
+
+        output = {
+            'Version': 1,
+            'AccessKeyId': access_key,
+            'SecretAccessKey': secret_key,
+        }
+        if session_token:
+            output['SessionToken'] = session_token
+        if expiration:
+            output['Expiration'] = expiration
+
+        # Restore stdout and write the JSON
+        sys.stdout = real_stdout
+        print(json.dumps(output))
+
+    except requests.exceptions.RequestException as e:
+        sys.stdout = real_stdout
+        print(f'Error connecting to API: {e}', file=sys.stderr)
+        exit(1)
+    except Exception as e:
+        sys.stdout = real_stdout
+        print(f'Error: {e}', file=sys.stderr)
+        exit(1)
