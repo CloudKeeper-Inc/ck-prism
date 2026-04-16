@@ -11,12 +11,15 @@ COMMANDS:
   configure           Configure authentication settings
   login               Authenticate and get AWS credentials
   credential-process  Output AWS credentials as JSON for credential_process
+  profiles            Manage configured profiles (list, remove)
   help                Show this help message
 
 USAGE:
   ck-prism configure
   ck-prism login --profile PROFILE_NAME
   ck-prism credential-process --profile PROFILE_NAME
+  ck-prism profiles list
+  ck-prism profiles remove [PROFILE_NAME] [-y|--yes]
   ck-prism help
 
 EXAMPLES:
@@ -25,6 +28,13 @@ EXAMPLES:
 
   # Login with a specific profile
   ck-prism login --profile production
+
+  # List all configured profiles
+  ck-prism profiles list
+
+  # Remove a profile (interactive picker if no name given)
+  ck-prism profiles remove
+  ck-prism profiles remove production -y
 
   # Use as AWS credential_process (in ~/.aws/config)
   # [profile production]

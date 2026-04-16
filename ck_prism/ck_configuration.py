@@ -1,21 +1,12 @@
-import sys
 import json
-import subprocess
 import os
 from ck_prism.ck_login import interactive_login, fetch_available_roles, DEFAULT_PRISM_DOMAIN, get_prism_base_url, get_api_endpoint
+from ck_prism.ck_paths import get_home_dir
 from ck_prism.ck_prompt import interactive_select, clear_screen, Spinner
+from ck_prism import ck_token_store
 
 def configure_utility():
-    if sys.platform.startswith('linux') or sys.platform.startswith('darwin'):
-        cmd = 'echo $HOME'
-    elif sys.platform.startswith('win'):
-        cmd = 'echo %USERPROFILE%'
-    else:
-        print(f'Unsupported platform: {sys.platform}')
-        exit(1)
-
-    directory = subprocess.run(cmd, shell=True, capture_output=True)
-    directory = directory.stdout.decode('utf-8').strip()
+    directory = get_home_dir()
 
     print("\nConfiguring ck-prism")
     print("=" * 50)
@@ -113,7 +104,7 @@ def configure_utility():
         choices=role_choices,
     )
             
-    print(f"\nSelected Role: {selected_role['name']} ({selected_role['role_arn']})")
+    print(f"\nSelected Role: {selected_role['name']}")
 
     # 7. Ask for Profile Name
     default_profile_name = f"{selected_account_id}-{selected_role['name']}"
@@ -148,15 +139,10 @@ def configure_utility():
     
     with open(config_file_path, 'w') as f:
         json.dump(config, f, indent=2)
-        
-    # Save the tokens we just got so we don't need to login again immediately
-    tokens_dir = os.path.join(config_dir, 'tokens')
-    os.makedirs(tokens_dir, exist_ok=True)
-    token_file = os.path.join(tokens_dir, f'{profile_name}_tokens.json')
-    
-    with open(token_file, 'w') as f:
-        json.dump(tokens, f, indent=2)
-    os.chmod(token_file, 0o600)
+
+    # Save the tokens we just got so we don't need to login again immediately.
+    # Stored per tenant (prism_domain, realm), shared across profiles.
+    ck_token_store.save_tokens(config[profile_name], profile_name, tokens)
 
     print(f"\nConfiguration saved for profile '{profile_name}'!")
     print(f"You can now login using: ck-prism login --profile {profile_name}")

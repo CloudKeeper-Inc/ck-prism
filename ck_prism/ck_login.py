@@ -1,8 +1,8 @@
-import sys 
-import subprocess
+import sys
 import json
 import os
-import configparser 
+import configparser
+import subprocess
 import time
 import hashlib
 import base64
@@ -12,6 +12,12 @@ import http.server
 import socketserver
 import threading
 import requests
+
+from ck_prism.ck_paths import get_home_dir
+from ck_prism.ck_profile_resolver import resolve_profile, ProfileResolutionError
+from ck_prism.ck_prompt import interactive_select
+from ck_prism.ck_state import read_last_profile, write_last_profile
+from ck_prism import ck_token_store
 
 # Default domain configuration
 DEFAULT_PRISM_DOMAIN = 'prism.cloudkeeper.com'
@@ -25,97 +31,107 @@ def get_api_endpoint(prism_domain=DEFAULT_PRISM_DOMAIN):
     return f'https://cli.{prism_domain}/exchange'
 
 def get_home_directory():
-    if sys.platform.startswith('linux') or sys.platform.startswith('darwin'):
-        # Linux or MacOS
-        cmd = 'echo $HOME'
-    elif sys.platform.startswith('win'):
-        # Windows
-        cmd = 'echo %USERPROFILE%'
-    else:
-        print(f'Unsupported platform: {sys.platform}')
-        exit(1)
-
-    directory = subprocess.run(cmd, shell=True, capture_output=True)
-    directory = directory.stdout.decode('utf-8').strip()
-    return directory
+    return get_home_dir()
 
 def login_utility():
     directory = get_home_directory()
 
-    profile = 'default'
+    explicit_profile = None
     if len(sys.argv) == 2:
-        pass # Default profile
+        pass
     elif len(sys.argv) == 4:
         if sys.argv[2] == '--profile':
-            profile = sys.argv[3]
-            print(f'Using {profile} profile')
+            explicit_profile = sys.argv[3]
         else:
             print(f'Invalid flag {sys.argv[2]}. Acceptable flag is --profile.')
-            exit()
+            exit(1)
+    else:
+        print('Invalid arguments. Usage: ck-prism login [--profile NAME]')
+        exit(1)
 
     config_path = os.path.join(directory, '.ck-prism', 'config.json')
     if not os.path.exists(config_path):
-        print(f'Configuration not found. Run ck-prism configure')
+        print('Configuration not found. Run ck-prism configure')
         exit(1)
 
     try:
         with open(config_path, 'r') as f:
-            config = json.load(f)
+            raw_config = json.load(f)
     except json.JSONDecodeError:
-        print(f'Configuration file is invalid or empty. Run ck-prism configure')
+        print('Configuration file is invalid or empty. Run ck-prism configure')
         exit(1)
-    
-    if not config or profile not in config:
-        if profile == 'default':
-            print(f'No configuration found. Run ck-prism configure')
+
+    profile_entries = {k: v for k, v in raw_config.items() if isinstance(v, dict)}
+
+    last_profile = read_last_profile()
+    is_tty = sys.stdin.isatty() and sys.stdout.isatty()
+
+    try:
+        suggested, should_prompt = resolve_profile(
+            explicit=explicit_profile,
+            config=profile_entries,
+            last_profile=last_profile,
+            is_tty=is_tty,
+        )
+    except ProfileResolutionError as e:
+        print(str(e))
+        exit(1)
+
+    if should_prompt:
+        choices = [{"name": n, "value": n} for n in sorted(profile_entries.keys())]
+        profile = interactive_select(
+            message="Select a profile to log in with:",
+            choices=choices,
+            default=suggested,
+        )
+    else:
+        profile = suggested
+        if explicit_profile is not None:
+            print(f'Using {profile} profile')
+        elif len(profile_entries) == 1:
+            print(f'Using profile: {profile}')
         else:
-            print(f'Profile {profile} not found. Run ck-prism configure')
-        exit(1)
+            print(f'Using last profile: {profile} (use --profile to switch)')
 
-    profile_config = config[profile]
+    profile_config = profile_entries[profile]
 
-    # Get Prism domain from config (with default)
     prism_domain = profile_config.get('prism_domain', DEFAULT_PRISM_DOMAIN)
     profile_config['keycloak_base_url'] = get_prism_base_url(prism_domain)
     profile_config['api_endpoint'] = get_api_endpoint(prism_domain)
 
-
     tokens = get_or_refresh_tokens(profile_config, directory, profile)
-    
+
     if 'role_arn' not in profile_config:
         print(f"Error: Profile '{profile}' is missing 'role_arn'. Please run 'ck-prism configure' again.")
         exit(1)
 
     get_aws_credentials(profile_config, tokens['access_token'], profile_config['role_arn'], profile, directory)
 
+    try:
+        write_last_profile(profile)
+    except OSError:
+        pass
+
 def get_or_refresh_tokens(config, directory, profile):
-    tokens_dir = os.path.join(directory, '.ck-prism', 'tokens')
-    os.makedirs(tokens_dir, exist_ok=True)
-    
-    token_file = os.path.join(tokens_dir, f'{profile}_tokens.json')
-    
-    # Try to load and refresh existing tokens
-    if os.path.exists(token_file):
-        with open(token_file, 'r') as f:
-            tokens = json.load(f)
-        
+    tokens = ck_token_store.load_tokens(config, profile)
+
+    if tokens:
         # Check if access token is still valid (with 5 min buffer)
         if tokens.get('expires_at', 0) > time.time() + 300:
-            # print('Using cached access token') # Silent as per requirement "silently"
             return tokens
-        
+
         # Try refresh
         if tokens.get('refresh_token'):
             print('Refreshing tokens...')
             refreshed = refresh_tokens(config, tokens['refresh_token'])
             if refreshed:
-                save_tokens(token_file, refreshed)
+                ck_token_store.save_tokens(config, profile, refreshed)
                 return refreshed
-    
+
     # Interactive login required
     print('Performing interactive login...')
     new_tokens = interactive_login(config)
-    save_tokens(token_file, new_tokens)
+    ck_token_store.save_tokens(config, profile, new_tokens)
     return new_tokens
 
 def refresh_tokens(config, refresh_token):
@@ -342,8 +358,8 @@ def open_browser(url):
             subprocess.run(['open', url], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         elif sys.platform.startswith('win'):
             os.startfile(url)
-    except:
-        pass
+    except (OSError, FileNotFoundError) as e:
+        print(f'(could not auto-open browser: {e})', file=sys.stderr)
 
 def save_tokens(token_file, tokens):
     with open(token_file, 'w') as f:
@@ -417,7 +433,7 @@ def exchange_credentials(config, access_token, role_arn):
     return creds
 
 def get_aws_credentials(config, access_token, role_arn, profile, directory):
-    print(f'Exchanging token for AWS credentials for role: {role_arn}...')
+    print('Exchanging token for AWS credentials...')
 
     try:
         creds = exchange_credentials(config, access_token, role_arn)
@@ -429,6 +445,34 @@ def get_aws_credentials(config, access_token, role_arn, profile, directory):
     except Exception as e:
         print(f'Error exchanging credentials: {e}')
         exit(1)
+
+def _format_expires_in(expiration):
+    if not expiration:
+        return "~1 hour"
+
+    try:
+        if isinstance(expiration, (int, float)):
+            expire_ts = float(expiration)
+        else:
+            from datetime import datetime, timezone
+            s = str(expiration).strip().replace('Z', '+00:00')
+            expire_ts = datetime.fromisoformat(s).timestamp()
+    except (ValueError, TypeError):
+        return str(expiration)
+
+    seconds = int(expire_ts - time.time())
+    if seconds <= 0:
+        return "less than a minute (already expired?)"
+
+    hours, rem = divmod(seconds, 3600)
+    minutes = rem // 60
+
+    if hours == 0:
+        return f"{minutes} minute{'s' if minutes != 1 else ''}"
+    if minutes == 0:
+        return f"{hours} hour{'s' if hours != 1 else ''}"
+    return f"{hours} hour{'s' if hours != 1 else ''} {minutes} minute{'s' if minutes != 1 else ''}"
+
 
 def write_aws_credentials(creds, profile, directory, region):
     credentials_path = os.path.join(directory, '.aws', 'credentials')
@@ -479,10 +523,8 @@ def write_aws_credentials(creds, profile, directory, region):
         config_parser.write(f)
 
     print(f'\nAWS credentials written to ~/.aws/credentials')
-    if expiration:
-        print(f'Credentials expire at: {expiration}')
-    else:
-        print(f'Credentials expire at: {time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(time.time() + 3600))}')
+    expires_in = _format_expires_in(expiration)
+    print(f'Credentials expire in {expires_in}')
 
 def credential_process_utility():
     """Output AWS credentials as JSON for use with AWS credential_process."""

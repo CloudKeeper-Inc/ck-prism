@@ -97,6 +97,29 @@ Or with named profile:
 aws s3 ls --profile production
 ```
 
+## Managing Profiles
+
+### List Profiles
+```bash
+ck-prism profiles list
+```
+
+### Remove a Profile
+Interactive picker (asks for confirmation):
+```bash
+ck-prism profiles remove
+```
+
+By name, skipping confirmation:
+```bash
+ck-prism profiles remove production -y
+```
+
+Removing a profile cleans up:
+- The profile entry in `~/.ck-prism/config.json`
+- The cached tokens file in `~/.ck-prism/tokens/`
+- The matching section in `~/.aws/credentials`
+
 ## Token Caching
 
 Tokens are cached in `~/.ck-prism/tokens/` and automatically refreshed when needed.
