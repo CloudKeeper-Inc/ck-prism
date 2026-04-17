@@ -11,19 +11,23 @@ COMMANDS:
   configure           Configure authentication settings
   login               Authenticate and get AWS credentials
   credential-process  Output AWS credentials as JSON for credential_process
-  profiles            Manage configured profiles (list, remove)
+  profiles            Manage configured profiles
+  setup-completions   Set up shell tab-completion (bash/zsh)
   help                Show this help message
 
 USAGE:
   ck-prism configure
-  ck-prism login --profile PROFILE_NAME
+  ck-prism login [--profile PROFILE_NAME]
   ck-prism credential-process --profile PROFILE_NAME
   ck-prism profiles list
   ck-prism profiles remove [PROFILE_NAME] [-y|--yes]
+  ck-prism profiles enable-credential-process [PROFILE_NAME]
+  ck-prism profiles disable-credential-process [PROFILE_NAME]
+  ck-prism profiles migrate-credential-process
   ck-prism help
 
 EXAMPLES:
-  # Configure a new profile
+  # Configure a new profile (enables credential_process by default)
   ck-prism configure
 
   # Login with a specific profile
@@ -32,14 +36,20 @@ EXAMPLES:
   # List all configured profiles
   ck-prism profiles list
 
-  # Remove a profile (interactive picker if no name given)
-  ck-prism profiles remove
+  # Remove a profile
   ck-prism profiles remove production -y
 
-  # Use as AWS credential_process (in ~/.aws/config)
-  # [profile production]
-  # credential_process = ck-prism credential-process --profile production
-  # region = us-east-1
+  # Enable credential_process for a profile (auto-configures ~/.aws/config)
+  ck-prism profiles enable-credential-process production
+
+  # Disable credential_process for a profile
+  ck-prism profiles disable-credential-process production
+
+  # Migrate all profiles to use credential_process
+  ck-prism profiles migrate-credential-process
+
+  # Set up shell tab-completion
+  ck-prism setup-completions
 
 For more information, visit: https://www.cloudkeeper.com/
     '''

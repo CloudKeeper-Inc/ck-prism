@@ -1,7 +1,9 @@
 import json
 import os
+from ck_prism.ck_completions import setup_completions_utility
 from ck_prism.ck_login import interactive_login, fetch_available_roles, DEFAULT_PRISM_DOMAIN, get_prism_base_url, get_api_endpoint
 from ck_prism.ck_paths import get_home_dir
+from ck_prism.ck_profiles import enable_credential_process
 from ck_prism.ck_prompt import interactive_select, clear_screen, Spinner
 from ck_prism import ck_token_store
 
@@ -145,4 +147,20 @@ def configure_utility():
     ck_token_store.save_tokens(config[profile_name], profile_name, tokens)
 
     print(f"\nConfiguration saved for profile '{profile_name}'!")
-    print(f"You can now login using: ck-prism login --profile {profile_name}")
+
+    # 9. Offer to enable credential_process (default: yes)
+    cp_answer = input('Enable credential_process for this profile? [Y/n]: ').strip().lower()
+    if cp_answer in ('', 'y', 'yes'):
+        results = enable_credential_process(profile_name, config, config_file_path)
+        print(f"\nEnabled credential_process for '{profile_name}':")
+        for line in results:
+            print(f"  - {line}")
+        print(f"\nAWS CLI will now fetch credentials automatically when you use --profile {profile_name}.")
+    else:
+        config[profile_name]['credential_process_enabled'] = False
+        with open(config_file_path, 'w') as f:
+            json.dump(config, f, indent=2)
+        print(f"You can now login using: ck-prism login --profile {profile_name}")
+
+    # 10. Set up shell completions (silently if already done)
+    setup_completions_utility(silent=True)

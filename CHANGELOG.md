@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.5.0] 2026-04-17
+- Added `ck-prism profiles enable-credential-process` and `disable-credential-process` to automate AWS `credential_process` setup
+- Added `ck-prism profiles migrate-credential-process` to enable credential_process for all profiles at once
+- `ck-prism configure` now prompts to enable credential_process by default for new profiles
+- `ck-prism login` skips login for profiles configured with credential_process and informs the user
+- Added `ck-prism setup-completions` for bash/zsh tab-completion of commands, subcommands, and profile names
+- Shell completions are set up automatically during `ck-prism configure`
+
 ## [1.4.0] 2026-04-16
 - Added `ck-prism profiles list` to list all configured profiles
 - Added `ck-prism profiles remove [NAME] [-y|--yes]` to remove a profile, its cached tokens, and its AWS credentials section

@@ -95,6 +95,13 @@ def login_utility():
 
     profile_config = profile_entries[profile]
 
+    if profile_config.get('credential_process_enabled'):
+        print(f"\nProfile '{profile}' is configured to use credential_process.")
+        print(f"AWS CLI will fetch credentials automatically — no manual login needed.")
+        print(f"\nTo switch back to manual login, run:")
+        print(f"  ck-prism profiles disable-credential-process {profile}")
+        return
+
     prism_domain = profile_config.get('prism_domain', DEFAULT_PRISM_DOMAIN)
     profile_config['keycloak_base_url'] = get_prism_base_url(prism_domain)
     profile_config['api_endpoint'] = get_api_endpoint(prism_domain)

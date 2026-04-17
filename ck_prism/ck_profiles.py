@@ -92,6 +92,169 @@ def _remove_aws_config_section(name):
     return _remove_section(get_aws_config_path(), _aws_config_section_name(name))
 
 
+def _save_config(config, config_path):
+    with open(config_path, 'w') as f:
+        json.dump(config, f, indent=2)
+
+
+def _resolve_profile_name(args, usage_hint):
+    name = None
+    for arg in args:
+        if arg.startswith('-'):
+            print(f"ERROR: Unknown flag {arg}. Usage: {usage_hint}")
+            sys.exit(1)
+        if name is not None:
+            print("ERROR: Only one profile name may be specified.")
+            sys.exit(1)
+        name = arg
+    return name
+
+
+def enable_credential_process(name, config, config_path):
+    """Enable credential_process for a single profile. Returns list of result strings."""
+    profile_config = config[name]
+    results = []
+
+    # 1. Write credential_process to ~/.aws/config
+    aws_config_path = get_aws_config_path()
+    os.makedirs(os.path.dirname(aws_config_path), exist_ok=True)
+    parser = configparser.ConfigParser()
+    parser.read(aws_config_path)
+
+    section = _aws_config_section_name(name)
+    if not parser.has_section(section):
+        parser[section] = {}
+
+    parser[section]['credential_process'] = f'ck-prism credential-process --profile {name}'
+    parser[section]['region'] = profile_config.get('region', 'us-east-1')
+    parser[section]['output'] = profile_config.get('output', 'json')
+
+    with open(aws_config_path, 'w') as f:
+        parser.write(f)
+    results.append("~/.aws/config: credential_process line added")
+
+    # 2. Remove static credentials that would shadow credential_process
+    if _remove_aws_credentials_section(name):
+        results.append("~/.aws/credentials: static entry removed (would have shadowed credential_process)")
+    else:
+        results.append("~/.aws/credentials: skipped (no static entry)")
+
+    # 3. Update ck-prism config flag
+    profile_config['credential_process_enabled'] = True
+    _save_config(config, config_path)
+
+    return results
+
+
+def disable_credential_process(name, config, config_path):
+    """Disable credential_process for a single profile. Returns list of result strings."""
+    results = []
+
+    aws_config_path = get_aws_config_path()
+    if os.path.exists(aws_config_path):
+        parser = configparser.ConfigParser()
+        parser.read(aws_config_path)
+
+        section = _aws_config_section_name(name)
+        if parser.has_section(section) and parser.has_option(section, 'credential_process'):
+            parser.remove_option(section, 'credential_process')
+            # Remove section if only empty or has just region/output
+            remaining = dict(parser.items(section))
+            if not remaining:
+                parser.remove_section(section)
+            with open(aws_config_path, 'w') as f:
+                parser.write(f)
+            results.append("~/.aws/config: credential_process line removed")
+        else:
+            results.append("~/.aws/config: no credential_process line found")
+    else:
+        results.append("~/.aws/config: file not found")
+
+    config[name]['credential_process_enabled'] = False
+    _save_config(config, config_path)
+
+    return results
+
+
+def enable_credential_process_utility():
+    name = _resolve_profile_name(
+        sys.argv[3:],
+        "ck-prism profiles enable-credential-process [NAME]"
+    )
+    config, config_path = _load_config()
+    if not config:
+        print("No profiles configured. Run 'ck-prism configure' to create one.")
+        return
+
+    if name is None:
+        choices = [{"name": n, "value": n} for n in sorted(config.keys())]
+        name = interactive_select(
+            message="Select a profile to enable credential_process for:",
+            choices=choices,
+        )
+
+    if name not in config:
+        print(f"Profile '{name}' not found.")
+        sys.exit(1)
+
+    results = enable_credential_process(name, config, config_path)
+    print(f"\nEnabled credential_process for '{name}':")
+    for line in results:
+        print(f"  - {line}")
+
+
+def disable_credential_process_utility():
+    name = _resolve_profile_name(
+        sys.argv[3:],
+        "ck-prism profiles disable-credential-process [NAME]"
+    )
+    config, config_path = _load_config()
+    if not config:
+        print("No profiles configured.")
+        return
+
+    if name is None:
+        choices = [{"name": n, "value": n} for n in sorted(config.keys())]
+        name = interactive_select(
+            message="Select a profile to disable credential_process for:",
+            choices=choices,
+        )
+
+    if name not in config:
+        print(f"Profile '{name}' not found.")
+        sys.exit(1)
+
+    results = disable_credential_process(name, config, config_path)
+    print(f"\nDisabled credential_process for '{name}':")
+    for line in results:
+        print(f"  - {line}")
+
+
+def migrate_credential_process_utility():
+    config, config_path = _load_config()
+    if not config:
+        print("No profiles configured.")
+        return
+
+    migrated = 0
+    skipped = 0
+
+    for name in sorted(config.keys()):
+        profile = config[name]
+        if not isinstance(profile, dict):
+            continue
+        if profile.get('credential_process_enabled'):
+            print(f"  [skip] {name} (already enabled)")
+            skipped += 1
+            continue
+
+        enable_credential_process(name, config, config_path)
+        print(f"  [done] {name}")
+        migrated += 1
+
+    print(f"\nMigrated {migrated} profile(s) to credential_process ({skipped} already enabled, skipped).")
+
+
 def remove_profile_utility():
     name, assume_yes = _parse_remove_args(sys.argv[3:])
 
