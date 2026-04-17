@@ -42,3 +42,7 @@ def get_aws_config_path():
 
 def get_state_path():
     return os.path.join(get_config_dir(), 'state.json')
+
+
+def get_sts_cache_dir():
+    return os.path.join(get_config_dir(), 'sts-cache')

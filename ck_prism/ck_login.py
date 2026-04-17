@@ -18,6 +18,7 @@ from ck_prism.ck_profile_resolver import resolve_profile, ProfileResolutionError
 from ck_prism.ck_prompt import interactive_select
 from ck_prism.ck_state import read_last_profile, write_last_profile
 from ck_prism import ck_token_store
+from ck_prism import ck_sts_cache
 
 # Default domain configuration
 DEFAULT_PRISM_DOMAIN = 'prism.cloudkeeper.com'
@@ -577,13 +578,19 @@ def credential_process_utility():
         profile_config['keycloak_base_url'] = get_prism_base_url(prism_domain)
         profile_config['api_endpoint'] = get_api_endpoint(prism_domain)
 
-        tokens = get_or_refresh_tokens(profile_config, directory, profile)
-
         if 'role_arn' not in profile_config:
             print(f"Error: Profile '{profile}' is missing 'role_arn'. Please run 'ck-prism configure' again.", file=sys.stderr)
             exit(1)
+        role_arn = profile_config['role_arn']
 
-        creds = exchange_credentials(profile_config, tokens['access_token'], profile_config['role_arn'])
+        cached = ck_sts_cache.load_creds(profile_config, role_arn)
+        if cached:
+            sys.stdout = real_stdout
+            print(json.dumps(cached))
+            return
+
+        tokens = get_or_refresh_tokens(profile_config, directory, profile)
+        creds = exchange_credentials(profile_config, tokens['access_token'], role_arn)
 
         # Map to AWS credential_process output format
         access_key = creds.get('access_key_id') or creds.get('AccessKeyId')
@@ -604,6 +611,8 @@ def credential_process_utility():
             output['SessionToken'] = session_token
         if expiration:
             output['Expiration'] = expiration
+
+        ck_sts_cache.save_creds(profile_config, role_arn, output)
 
         # Restore stdout and write the JSON
         sys.stdout = real_stdout

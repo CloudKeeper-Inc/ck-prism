@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.5.2] 2026-04-17
+- Cached AWS credentials returned by `ck-prism credential-process` so AWS CLI invocations no longer trigger a Prism exchange (and audit-log entry) for every command; cache respects the credential expiration
+- Cache is cleared automatically when a profile is removed
+
 ## [1.5.1] 2026-04-17
 - Fixed `ck-prism setup-completions` detecting the wrong shell when the user had switched shells in the current session (e.g. launched `zsh` from bash); now inspects the actual parent shell
 - Added `--shell bash|zsh` flag to `ck-prism setup-completions` to explicitly override shell detection

@@ -10,6 +10,7 @@ from ck_prism.ck_paths import (
 )
 from ck_prism.ck_prompt import interactive_select
 from ck_prism import ck_token_store
+from ck_prism import ck_sts_cache
 
 
 def _load_config():
@@ -353,6 +354,15 @@ def remove_profile_utility():
     except OSError as e:
         had_error = True
         results.append(f"legacy per-profile token file FAILED: {e}")
+
+    role_arn = removed_profile_config.get('role_arn')
+    if role_arn:
+        try:
+            if ck_sts_cache.remove_creds(removed_profile_config, role_arn):
+                results.append("cached AWS credentials removed")
+        except OSError as e:
+            had_error = True
+            results.append(f"cached AWS credentials FAILED: {e}")
 
     try:
         if _remove_aws_credentials_section(name):
