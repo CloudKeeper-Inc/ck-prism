@@ -230,6 +230,24 @@ def disable_credential_process_utility():
         print(f"  - {line}")
 
 
+def _is_aws_config_in_sync(name):
+    """Check if ~/.aws/config has a correct credential_process entry for the profile."""
+    aws_config_path = get_aws_config_path()
+    if not os.path.exists(aws_config_path):
+        return False
+
+    parser = configparser.ConfigParser()
+    parser.read(aws_config_path)
+
+    section = _aws_config_section_name(name)
+    if not parser.has_section(section):
+        return False
+
+    expected = f'ck-prism credential-process --profile {name}'
+    actual = parser.get(section, 'credential_process', fallback=None)
+    return actual == expected
+
+
 def migrate_credential_process_utility():
     config, config_path = _load_config()
     if not config:
@@ -237,22 +255,37 @@ def migrate_credential_process_utility():
         return
 
     migrated = 0
+    repaired = 0
     skipped = 0
 
     for name in sorted(config.keys()):
         profile = config[name]
         if not isinstance(profile, dict):
             continue
-        if profile.get('credential_process_enabled'):
+
+        flag_enabled = profile.get('credential_process_enabled')
+        aws_in_sync = _is_aws_config_in_sync(name)
+
+        if flag_enabled and aws_in_sync:
             print(f"  [skip] {name} (already enabled)")
             skipped += 1
+            continue
+
+        if flag_enabled and not aws_in_sync:
+            enable_credential_process(name, config, config_path)
+            print(f"  [repair] {name}")
+            repaired += 1
             continue
 
         enable_credential_process(name, config, config_path)
         print(f"  [done] {name}")
         migrated += 1
 
-    print(f"\nMigrated {migrated} profile(s) to credential_process ({skipped} already enabled, skipped).")
+    parts = [f"{migrated} migrated"]
+    if repaired:
+        parts.append(f"{repaired} repaired")
+    parts.append(f"{skipped} already enabled")
+    print(f"\n{', '.join(parts)}.")
 
 
 def remove_profile_utility():

@@ -59,6 +59,8 @@ complete -F _ck_prism_completions ck-prism
 '''
 
 ZSH_SCRIPT = r'''# ck-prism zsh completions
+autoload -Uz compinit 2>/dev/null && compinit -C 2>/dev/null
+
 _ck_prism() {
     local -a commands profiles_subcmds
 
@@ -130,6 +132,17 @@ def _get_completions_dir():
 
 
 def _detect_shell():
+    # Prefer the actual parent process (the shell that invoked ck-prism),
+    # since $SHELL reflects the login shell and misses cases where the user
+    # launched a different shell interactively (e.g. typed `zsh` in bash).
+    try:
+        with open(f'/proc/{os.getppid()}/comm', 'r') as f:
+            parent = f.read().strip().lstrip('-')
+        if parent in ('zsh', 'bash'):
+            return parent
+    except OSError:
+        pass
+
     shell = os.environ.get('SHELL', '')
     if 'zsh' in shell:
         return 'zsh'
@@ -154,8 +167,9 @@ def _already_sourced(profile_path, source_line):
         return source_line in f.read()
 
 
-def setup_completions_utility(silent=False):
-    shell = _detect_shell()
+def setup_completions_utility(silent=False, shell=None):
+    if shell not in ('bash', 'zsh'):
+        shell = _detect_shell()
     script = ZSH_SCRIPT if shell == 'zsh' else BASH_SCRIPT
     ext = 'zsh' if shell == 'zsh' else 'bash'
 

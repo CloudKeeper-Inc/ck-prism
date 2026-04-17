@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.5.1] 2026-04-17
+- Fixed `ck-prism setup-completions` detecting the wrong shell when the user had switched shells in the current session (e.g. launched `zsh` from bash); now inspects the actual parent shell
+- Added `--shell bash|zsh` flag to `ck-prism setup-completions` to explicitly override shell detection
+- `ck-prism profiles migrate-credential-process` now also repairs profiles whose AWS config entry is missing or out of sync
+
 ## [1.5.0] 2026-04-17
 - Added `ck-prism profiles enable-credential-process` and `disable-credential-process` to automate AWS `credential_process` setup
 - Added `ck-prism profiles migrate-credential-process` to enable credential_process for all profiles at once

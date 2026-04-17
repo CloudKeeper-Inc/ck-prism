@@ -55,7 +55,12 @@ def main():
     elif command == 'credential-process':
         credential_process_utility()
     elif command == 'setup-completions':
-        setup_completions_utility()
+        shell_arg = None
+        for i, a in enumerate(sys.argv):
+            if a == '--shell' and i + 1 < len(sys.argv):
+                shell_arg = sys.argv[i + 1]
+                break
+        setup_completions_utility(shell=shell_arg)
     elif command == 'help':
         help_utility()
     else:
